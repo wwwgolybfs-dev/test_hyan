@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<script>
+  (function () {
+    var params = new URLSearchParams(location.search);
+    var t = params.get('theme') === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Терновый Трон — Petzker Cookware</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --blue: #2E7BEE;
+      --orange: #F0921A;
+      --green: #22C55E;
+      --red: #EF4444;
+      --bg: #F6F8FA;
+      --surface: #FFFFFF;
+      --border: #E8ECF0;
+      --text: #1A1D23;
+      --text-muted: #8A94A0;
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+    [data-theme="dark"] {
+      --bg: #14171C;
+      --surface: #1C2028;
+      --border: #2A2F38;
+      --text: #ECEEF1;
+      --text-muted: #8B94A0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; width: 100%; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      overflow: hidden;
+      margin: 0;
+    }
+
+    #gameCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: #0a0e27;
+    }
+
+    .t-ui {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+      background: rgba(15, 20, 50, 0.95);
+      padding: 12px 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(46, 123, 238, 0.2);
+    }
+
+    .t-stat {
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .t-stat span { color: var(--blue); font-weight: 700; }
+
+    .t-reset-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(46, 123, 238, 0.3);
+      background: rgba(46, 123, 238, 0.1);
+      cursor: pointer;
+      color: var(--blue);
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .15s;
+    }
+    .t-reset-btn:hover { background: rgba(46, 123, 238, 0.2); }
+    .t-reset-btn:active { transform: scale(.9); }
+
+    .t-joystick {
+      position: fixed;
+      bottom: 30px;
+      left: 30px;
+      z-index: 100;
+      width: 100px;
+      height: 100px;
+      background: rgba(46, 123, 238, 0.1);
+      border: 2px solid rgba(46, 123, 238, 0.4);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+    }
+
+    .t-joystick-stick {
+      width: 50px;
+      height: 50px;
+      background: rgba(46, 123, 238, 0.6);
+      border-radius: 50%;
+      position: absolute;
+      border: 2px solid var(--blue);
+      cursor: grab;
+    }
+    .t-joystick-stick:active { cursor: grabbing; }
+
+    .t-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      opacity: 0;
+      transition: opacity .2s;
+    }
+    .t-modal.open { display: flex; opacity: 1; }
+    .t-modal-content {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      text-align: center;
+      max-width: 300px;
+    }
+    .t-modal-title { font-size: 19px; font-weight: 800; margin-bottom: 12px; }
+    .t-modal-score { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; }
+    .t-modal-score b { color: var(--text); font-size: 20px; }
+    .t-modal-btn {
+      width: 100%;
+      padding: 12px;
+      background: var(--blue);
+      color: white;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<div class="t-ui">
+  <div>
+    <div class="t-stat">💰 <span id="gold">0</span></div>
+    <div class="t-stat">❤️ <span id="health">100</span></div>
+  </div>
+  <button class="t-reset-btn" onclick="init()" aria-label="Новая игра">↻</button>
+</div>
+
+<div class="t-joystick" id="joystick">
+  <div class="t-joystick-stick" id="joystick-stick"></div>
+</div>
+
+<div class="t-modal" id="gameOverModal">
+  <div class="t-modal-content">
+    <div class="t-modal-title">Игра окончена</div>
+    <div class="t-modal-score">Золота: <b id="finalGold">0</b></div>
+    <button class="t-modal-btn" onclick="init()">Новая игра</button>
+  </div>
+</div>
+
+<script>
+function haptic(k) { try { window.Telegram?.WebApp?.HapticFeedback?.[k === 'success' || k === 'error' || k === 'warning' ? 'notificationOccurred' : 'impactOccurred'](k || 'light'); } catch (e) { } }
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+// ═══════════════════════════════════════════════
+// GAME STATE
+// ═══════════════════════════════════════════════
+let gameState = {
+  gold: 0,
+  health: 100,
+  gameOver: false,
+  player: {
+    x: canvas.width / 2,
+    y: canvas.height / 2,
+    width: 20,
+    height: 20,
+    vx: 0,
+    vy: 0,
+    speed: 3,
+    angle: 0
+  },
+  enemies: [],
+  items: [],
+  particles: [],
+  wave: 1,
+  waveTime: 300,
+  spawnTime: 0
+};
+
+// ═══════════════════════════════════════════════
+// JOYSTICK CONTROL
+// ═══════════════════════════════════════════════
+const joystickEl = document.getElementById('joystick');
+const stickEl = document.getElementById('joystick-stick');
+let joystickActive = false;
+let joystickX = 0, joystickY = 0;
+
+function getJoystickPos(e) {
+  const rect = joystickEl.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const x = e.touches ? e.touches[0].clientX : e.clientX;
+  const y = e.touches ? e.touches[0].clientY : e.clientY;
+  const dx = x - centerX;
+  const dy = y - centerY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const maxDist = 40;
+  
+  if (dist > maxDist) {
+    joystickX = (dx / dist) * maxDist;
+    joystickY = (dy / dist) * maxDist;
+  } else {
+    joystickX = dx;
+    joystickY = dy;
+  }
+  
+  stickEl.style.left = (50 + joystickX - 25) + 'px';
+  stickEl.style.top = (50 + joystickY - 25) + 'px';
+}
+
+joystickEl.addEventListener('pointerdown', (e) => {
+  joystickActive = true;
+  getJoystickPos(e);
+});
+window.addEventListener('pointermove', (e) => {
+  if (joystickActive) getJoystickPos(e);
+});
+window.addEventListener('pointerup', () => {
+  joystickActive = false;
+  joystickX = 0;
+  joystickY = 0;
+  stickEl.style.left = '25px';
+  stickEl.style.top = '25px';
+});
+
+// ═══════════════════════════════════════════════
+// ENTITY DRAWING
+// ═══════════════════════════════════════════════
+function drawPlayer() {
+  const p = gameState.player;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  
+  // Body
+  ctx.fillStyle = '#4A7DF0';
+  ctx.beginPath();
+  ctx.arc(0, 0, p.width, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eye direction
+  const eyeX = Math.cos(p.angle) * 6;
+  const eyeY = Math.sin(p.angle) * 6;
+  ctx.fillStyle = '#FFF';
+  ctx.beginPath();
+  ctx.arc(eyeX, eyeY, 3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.restore();
+}
+
+function drawEnemy(enemy) {
+  ctx.fillStyle = '#E74C3C';
+  ctx.beginPath();
+  ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.fillStyle = '#FFF';
+  ctx.font = '10px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('👾', enemy.x, enemy.y);
+}
+
+function drawItem(item) {
+  ctx.fillStyle = '#F0921A';
+  ctx.beginPath();
+  ctx.arc(item.x, item.y, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#FFF';
+  ctx.font = '12px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('💰', item.x, item.y);
+}
+
+function drawParticles() {
+  gameState.particles.forEach(p => {
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.life / 20;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+}
+
+// ═══════════════════════════════════════════════
+// ENTITY LOGIC
+// ═══════════════════════════════════════════════
+function spawnEnemy() {
+  const angle = Math.random() * Math.PI * 2;
+  const dist = 300;
+  const x = gameState.player.x + Math.cos(angle) * dist;
+  const y = gameState.player.y + Math.sin(angle) * dist;
+  
+  gameState.enemies.push({
+    x, y,
+    size: 8,
+    health: 20,
+    maxHealth: 20,
+    speed: 1 + gameState.wave * 0.3
+  });
+}
+
+function spawnItem() {
+  const angle = Math.random() * Math.PI * 2;
+  const x = gameState.player.x + Math.cos(angle) * 100;
+  const y = gameState.player.y + Math.sin(angle) * 100;
+  
+  gameState.items.push({ x, y, value: 10 });
+}
+
+function updatePlayer() {
+  const p = gameState.player;
+  
+  // Движение джостиком
+  if (joystickX !== 0 || joystickY !== 0) {
+    const magnitude = Math.sqrt(joystickX * joystickX + joystickY * joystickY);
+    if (magnitude > 0) {
+      p.vx = (joystickX / magnitude) * p.speed;
+      p.vy = (joystickY / magnitude) * p.speed;
+      p.angle = Math.atan2(joystickY, joystickX);
+    }
+  } else {
+    p.vx *= 0.8;
+    p.vy *= 0.8;
+  }
+  
+  p.x += p.vx;
+  p.y += p.vy;
+  
+  // Границы
+  if (p.x < 20) p.x = 20;
+  if (p.x > canvas.width - 20) p.x = canvas.width - 20;
+  if (p.y < 20) p.y = 20;
+  if (p.y > canvas.height - 20) p.y = canvas.height - 20;
+  
+  // Сбор предметов
+  gameState.items = gameState.items.filter(item => {
+    const dx = p.x - item.x;
+    const dy = p.y - item.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    
+    if (dist < 25) {
+      gameState.gold += item.value;
+      createParticles(item.x, item.y, '#F0921A');
+      haptic('light');
+      return false;
+    }
+    return true;
+  });
+}
+
+function updateEnemies() {
+  gameState.enemies.forEach(enemy => {
+    const dx = gameState.player.x - enemy.x;
+    const dy = gameState.player.y - enemy.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    
+    if (dist > 0) {
+      enemy.x += (dx / dist) * enemy.speed;
+      enemy.y += (dy / dist) * enemy.speed;
+    }
+    
+    // Столкновение с игроком
+    if (dist < 25) {
+      gameState.health -= 0.5;
+      if (gameState.health <= 0) gameState.gameOver = true;
+    }
+  });
+  
+  // Удаление врагов за пределами экрана
+  gameState.enemies = gameState.enemies.filter(e => 
+    e.x > -50 && e.x < canvas.width + 50 && 
+    e.y > -50 && e.y < canvas.height + 50
+  );
+}
+
+function createParticles(x, y, color) {
+  for (let i = 0; i < 5; i++) {
+    gameState.particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 3,
+      vy: (Math.random() - 0.5) * 3,
+      life: 20,
+      color: color || '#F0921A'
+    });
+  }
+}
+
+function updateParticles() {
+  gameState.particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.1;
+    p.life--;
+  });
+  gameState.particles = gameState.particles.filter(p => p.life > 0);
+}
+
+// ═══════════════════════════════════════════════
+// GAME LOGIC
+// ═══════════════════════════════════════════════
+function update() {
+  updatePlayer();
+  updateEnemies();
+  updateParticles();
+  
+  // Wave spawning
+  gameState.waveTime--;
+  gameState.spawnTime++;
+  
+  if (gameState.spawnTime > 30 - gameState.wave * 3) {
+    spawnEnemy();
+    gameState.spawnTime = 0;
+  }
+  
+  if (gameState.waveTime <= 0) {
+    gameState.wave++;
+    gameState.waveTime = 300;
+    for (let i = 0; i < gameState.wave; i++) spawnItem();
+  }
+  
+  document.getElementById('gold').textContent = gameState.gold;
+  document.getElementById('health').textContent = Math.max(0, Math.floor(gameState.health));
+}
+
+function render() {
+  // Clear
+  ctx.fillStyle = '#0a0e27';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Grid background
+  ctx.strokeStyle = 'rgba(46, 123, 238, 0.1)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < canvas.width; i += 50) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i, canvas.height);
+    ctx.stroke();
+  }
+  for (let i = 0; i < canvas.height; i += 50) {
+    ctx.beginPath();
+    ctx.moveTo(0, i);
+    ctx.lineTo(canvas.width, i);
+    ctx.stroke();
+  }
+  
+  // Draw entities
+  gameState.items.forEach(drawItem);
+  gameState.enemies.forEach(drawEnemy);
+  drawParticles();
+  drawPlayer();
+  
+  // Wave info
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+  ctx.font = '14px Arial';
+  ctx.textAlign = 'right';
+  ctx.fillText(`Волна ${gameState.wave}`, canvas.width - 20, 30);
+}
+
+function gameLoop() {
+  if (!gameState.gameOver) {
+    update();
+    render();
+    requestAnimationFrame(gameLoop);
+  } else {
+    render();
+    document.getElementById('finalGold').textContent = gameState.gold;
+    document.getElementById('gameOverModal').classList.add('open');
+    haptic('error');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+function init() {
+  gameState.gold = 0;
+  gameState.health = 100;
+  gameState.gameOver = false;
+  gameState.player.x = canvas.width / 2;
+  gameState.player.y = canvas.height / 2;
+  gameState.player.vx = 0;
+  gameState.player.vy = 0;
+  gameState.enemies = [];
+  gameState.items = [];
+  gameState.particles = [];
+  gameState.wave = 1;
+  gameState.waveTime = 300;
+  gameState.spawnTime = 0;
+  
+  document.getElementById('gameOverModal').classList.remove('open');
+  
+  for (let i = 0; i < 3; i++) spawnItem();
+  gameLoop();
+  
+  if (window.Telegram?.WebApp) try { window.Telegram.WebApp.ready(); } catch (e) { }
+}
+
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+
+init();
+</script>
+</body>
+</html>

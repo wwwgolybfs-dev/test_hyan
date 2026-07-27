@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<script>
+  (function () {
+    var params = new URLSearchParams(location.search);
+    var t = params.get('theme') === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Дудл Джамп — Petzker Cookware</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --blue: #2E7BEE;
+      --orange: #F0921A;
+      --green: #22C55E;
+      --red: #EF4444;
+      --bg: #F6F8FA;
+      --surface: #FFFFFF;
+      --border: #E8ECF0;
+      --text: #1A1D23;
+      --text-muted: #8A94A0;
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+    [data-theme="dark"] {
+      --bg: #14171C;
+      --surface: #1C2028;
+      --border: #2A2F38;
+      --text: #ECEEF1;
+      --text-muted: #8B94A0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; width: 100%; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      overflow: hidden;
+      margin: 0;
+    }
+
+    .d-game { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+    
+    #gameCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg, #87CEEB 0%, #87CEEB 50%, #90EE90 100%);
+    }
+
+    .d-ui {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+      background: rgba(255,255,255,0.95);
+      padding: 12px 16px;
+      border-radius: var(--radius-sm);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .d-score-box { font-size: 14px; font-weight: 700; }
+    .d-score-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; }
+    .d-score-value { font-size: 18px; color: var(--blue); }
+
+    .d-reset-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .15s;
+    }
+    .d-reset-btn:hover { color: var(--blue); border-color: var(--blue); }
+    .d-reset-btn:active { transform: scale(.9); }
+
+    .d-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      opacity: 0;
+      transition: opacity .2s;
+    }
+    .d-modal.open { display: flex; opacity: 1; }
+    .d-modal-content {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      text-align: center;
+      max-width: 300px;
+    }
+    .d-modal-title { font-size: 19px; font-weight: 800; margin-bottom: 12px; }
+    .d-modal-score { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; }
+    .d-modal-score b { color: var(--text); font-size: 20px; }
+    .d-modal-btn {
+      width: 100%;
+      padding: 12px;
+      background: var(--blue);
+      color: white;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+<div class="d-game">
+  <canvas id="gameCanvas"></canvas>
+  <div class="d-ui">
+    <div class="d-score-box">
+      <div class="d-score-label">Очки</div>
+      <div class="d-score-value" id="score">0</div>
+    </div>
+    <button class="d-reset-btn" onclick="init()" aria-label="Новая игра">↻</button>
+  </div>
+</div>
+
+<div class="d-modal" id="gameOverModal">
+  <div class="d-modal-content">
+    <div class="d-modal-title">Игра окончена</div>
+    <div class="d-modal-score">Очки: <b id="finalScore">0</b></div>
+    <button class="d-modal-btn" onclick="init()">Новая игра</button>
+  </div>
+</div>
+
+<script>
+function haptic(k) { try { window.Telegram?.WebApp?.HapticFeedback?.[k === 'success' || k === 'error' || k === 'warning' ? 'notificationOccurred' : 'impactOccurred'](k || 'light'); } catch (e) { } }
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+// ═══════════════════════════════════════════════
+// GAME STATE
+// ═══════════════════════════════════════════════
+let gameState = {
+  score: 0,
+  gameOver: false,
+  player: {
+    x: canvas.width / 2,
+    y: canvas.height - 150,
+    width: 24,
+    height: 32,
+    velocityY: 0,
+    velocityX: 0,
+    jumpPower: -12
+  },
+  platforms: [],
+  particles: [],
+  cameraY: 0,
+  gravity: 0.5,
+  platformWidth: 60,
+  platformHeight: 12,
+  keys: {}
+};
+
+// ═══════════════════════════════════════════════
+// PLATFORM MANAGEMENT
+// ═══════════════════════════════════════════════
+function generatePlatforms() {
+  gameState.platforms = [];
+  let y = gameState.cameraY;
+  
+  while (y < gameState.cameraY + canvas.height) {
+    const x = Math.random() * (canvas.width - gameState.platformWidth);
+    gameState.platforms.push({
+      x, y,
+      width: gameState.platformWidth,
+      height: gameState.platformHeight,
+      type: Math.random() < 0.85 ? 'normal' : 'bounce'
+    });
+    y -= 60;
+  }
+}
+
+// ═══════════════════════════════════════════════
+// PLAYER DRAWING (Толстый китаец в шортах и майке)
+// ═══════════════════════════════════════════════
+function drawPlayer() {
+  const p = gameState.player;
+  const x = p.x + gameState.platformWidth / 2;
+  const y = p.y + canvas.height / 2 - gameState.cameraY * 0.5;
+
+  if (y < -50 || y > canvas.height + 50) return;
+
+  // Тело (живот)
+  ctx.fillStyle = '#F5B041';
+  ctx.beginPath();
+  ctx.ellipse(x, y, 14, 16, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Шорты
+  ctx.fillStyle = '#3498DB';
+  ctx.fillRect(x - 12, y + 12, 24, 10);
+
+  // Майка (подкатана)
+  ctx.fillStyle = '#E74C3C';
+  ctx.fillRect(x - 12, y - 8, 24, 12);
+
+  // Голова
+  ctx.fillStyle = '#F5B041';
+  ctx.beginPath();
+  ctx.arc(x, y - 16, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Глаза
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(x - 4, y - 18, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 4, y - 18, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Рот
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x, y - 14, 3, 0, Math.PI);
+  ctx.stroke();
+}
+
+// ═══════════════════════════════════════════════
+// PLATFORM DRAWING
+// ═══════════════════════════════════════════════
+function drawPlatforms() {
+  gameState.platforms.forEach(p => {
+    const screenX = p.x;
+    const screenY = p.y - gameState.cameraY + canvas.height / 2;
+
+    if (screenY < -20 || screenY > canvas.height + 20) return;
+
+    if (p.type === 'bounce') {
+      ctx.fillStyle = '#FF6B6B';
+      ctx.shadowColor = 'rgba(255, 107, 107, 0.5)';
+      ctx.shadowBlur = 10;
+    } else {
+      ctx.fillStyle = '#4ECDC4';
+      ctx.shadowColor = 'rgba(78, 205, 196, 0.3)';
+      ctx.shadowBlur = 5;
+    }
+
+    ctx.fillRect(screenX, screenY, p.width, p.height);
+    ctx.shadowColor = 'transparent';
+  });
+}
+
+// ═══════════════════════════════════════════════
+// GAME UPDATE
+// ═══════════════════════════════════════════════
+function update() {
+  const p = gameState.player;
+
+  // Движение по горизонтали
+  const moveSpeed = 4;
+  if (gameState.keys['ArrowLeft'] || gameState.keys['a']) p.velocityX = -moveSpeed;
+  else if (gameState.keys['ArrowRight'] || gameState.keys['d']) p.velocityX = moveSpeed;
+  else p.velocityX *= 0.9;
+
+  p.x += p.velocityX;
+
+  // Обертывание на краях
+  if (p.x < -p.width / 2) p.x = canvas.width;
+  if (p.x > canvas.width) p.x = -p.width / 2;
+
+  // Гравитация
+  p.velocityY += gameState.gravity;
+  p.y += p.velocityY;
+
+  // Столкновение с платформами
+  gameState.platforms.forEach(platform => {
+    if (p.velocityY > 0 &&
+        p.y + p.height >= platform.y &&
+        p.y + p.height <= platform.y + platform.height + 5 &&
+        p.x + p.width / 2 >= platform.x &&
+        p.x + p.width / 2 <= platform.x + platform.width) {
+      
+      if (platform.type === 'bounce') {
+        p.velocityY = p.jumpPower * 1.5;
+        gameState.score += 10;
+        createParticles(p.x + p.width / 2, p.y);
+        haptic('success');
+      } else {
+        p.velocityY = p.jumpPower;
+        gameState.score += 5;
+        createParticles(p.x + p.width / 2, p.y);
+        haptic('light');
+      }
+    }
+  });
+
+  // Обновление камеры
+  gameState.cameraY = p.y - canvas.height / 3;
+
+  // Проверка на конец игры (упал слишком низко)
+  if (p.y > gameState.cameraY + canvas.height + 100) {
+    gameState.gameOver = true;
+  }
+
+  // Удаление старых платформ и генерирование новых
+  gameState.platforms = gameState.platforms.filter(p => p.y > gameState.cameraY - 100);
+  if (gameState.platforms.length < 15) {
+    const lowestPlatform = Math.min(...gameState.platforms.map(p => p.y));
+    let y = lowestPlatform;
+    for (let i = 0; i < 10; i++) {
+      const x = Math.random() * (canvas.width - gameState.platformWidth);
+      gameState.platforms.push({
+        x, y,
+        width: gameState.platformWidth,
+        height: gameState.platformHeight,
+        type: Math.random() < 0.85 ? 'normal' : 'bounce'
+      });
+      y -= 60;
+    }
+  }
+
+  // Обновление частиц
+  gameState.particles = gameState.particles.filter(part => part.life > 0);
+  gameState.particles.forEach(part => {
+    part.x += part.vx;
+    part.y += part.vy;
+    part.vy += 0.2;
+    part.life--;
+  });
+
+  document.getElementById('score').textContent = gameState.score;
+}
+
+function createParticles(x, y) {
+  for (let i = 0; i < 5; i++) {
+    gameState.particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 4,
+      vy: (Math.random() - 0.5) * 3,
+      life: 20,
+      color: `hsl(${Math.random() * 60 + 30}, 100%, 50%)`
+    });
+  }
+}
+
+function drawParticles() {
+  gameState.particles.forEach(part => {
+    const screenY = part.y - gameState.cameraY + canvas.height / 2;
+    ctx.fillStyle = part.color;
+    ctx.globalAlpha = part.life / 20;
+    ctx.beginPath();
+    ctx.arc(part.x, screenY, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+}
+
+// ═══════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawPlatforms();
+  drawParticles();
+  drawPlayer();
+}
+
+// ═══════════════════════════════════════════════
+// GAME LOOP
+// ═══════════════════════════════════════════════
+function gameLoop() {
+  if (!gameState.gameOver) {
+    update();
+    render();
+    requestAnimationFrame(gameLoop);
+  } else {
+    render();
+    document.getElementById('finalScore').textContent = gameState.score;
+    document.getElementById('gameOverModal').classList.add('open');
+    haptic('error');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// INPUT
+// ═══════════════════════════════════════════════
+window.addEventListener('keydown', (e) => {
+  gameState.keys[e.key] = true;
+});
+window.addEventListener('keyup', (e) => {
+  gameState.keys[e.key] = false;
+});
+
+// Touch controls
+let touchStartX = 0;
+canvas.addEventListener('touchstart', (e) => {
+  touchStartX = e.touches[0].clientX;
+});
+canvas.addEventListener('touchmove', (e) => {
+  if (!touchStartX) return;
+  const touchX = e.touches[0].clientX;
+  if (touchX < touchStartX - 20) gameState.keys['ArrowLeft'] = true;
+  else if (touchX > touchStartX + 20) gameState.keys['ArrowRight'] = true;
+  else { gameState.keys['ArrowLeft'] = false; gameState.keys['ArrowRight'] = false; }
+});
+canvas.addEventListener('touchend', () => {
+  gameState.keys['ArrowLeft'] = false;
+  gameState.keys['ArrowRight'] = false;
+  touchStartX = 0;
+});
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+function init() {
+  gameState.score = 0;
+  gameState.gameOver = false;
+  gameState.player.y = canvas.height - 150;
+  gameState.player.velocityY = 0;
+  gameState.player.velocityX = 0;
+  gameState.cameraY = 0;
+  gameState.particles = [];
+  gameState.platforms = [];
+  document.getElementById('gameOverModal').classList.remove('open');
+  generatePlatforms();
+  gameLoop();
+  if (window.Telegram?.WebApp) try { window.Telegram.WebApp.ready(); } catch (e) { }
+}
+
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+
+init();
+</script>
+</body>
+</html>

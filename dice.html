@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<script>
+  (function () {
+    var params = new URLSearchParams(location.search);
+    var t = params.get('theme') === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Кубики — Petzker Cookware</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    :root {
+      --blue: #2E7BEE;
+      --orange: #F0921A;
+      --green: #22C55E;
+      --red: #EF4444;
+      --bg: #F6F8FA;
+      --surface: #FFFFFF;
+      --border: #E8ECF0;
+      --text: #1A1D23;
+      --text-muted: #8A94A0;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --board-bg: #1B2440;
+      --cell-empty: rgba(255,255,255,0.07);
+    }
+    [data-theme="dark"] {
+      --bg: #14171C;
+      --surface: #1C2028;
+      --border: #2A2F38;
+      --text: #ECEEF1;
+      --text-muted: #8B94A0;
+      --board-bg: #12182C;
+      --cell-empty: rgba(255,255,255,0.05);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+      transition: background-color .2s, color .2s;
+    }
+
+    .g-container { max-width: 460px; margin: 0 auto; padding: 16px 16px 28px; }
+
+    .g-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .g-title { font-size: 18px; font-weight: 800; }
+    .g-reset-btn {
+      width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text-muted); cursor: pointer; font-size: 16px;
+      display: flex; align-items: center; justify-content: center; transition: all .15s;
+    }
+    .g-reset-btn:hover { color: var(--blue); border-color: var(--blue); }
+    .g-reset-btn:active { transform: scale(.9) rotate(-25deg); }
+
+    .g-scores { display: flex; gap: 10px; margin-bottom: 16px; }
+    .g-score-box {
+      flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 10px 14px; text-align: center;
+    }
+    .g-score-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2px; }
+    .g-score-value { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+    .g-board-wrap { background: var(--board-bg); border-radius: var(--radius); padding: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.18); margin-bottom: 16px; }
+    .g-board {
+      display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; aspect-ratio: 1;
+    }
+    .g-cell { border-radius: 6px; background: var(--cell-empty); cursor: pointer; transition: all .1s; }
+    .g-cell.filled { background: #4A7DF0; box-shadow: inset 0 -2px 0 rgba(0,0,0,.18), inset 0 2px 0 rgba(255,255,255,.25); }
+    .g-cell.preview-valid { outline: 2px solid var(--green); outline-offset: -2px; background: rgba(34,197,94,.4); }
+    .g-cell.preview-invalid { outline: 2px solid var(--red); outline-offset: -2px; background: rgba(239,68,68,.35); }
+
+    .g-tray { display: flex; justify-content: space-around; align-items: center; min-height: 100px; margin-bottom: 16px; }
+    .g-tray-slot { width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; }
+    .g-tray-piece { display: grid; gap: 3px; cursor: grab; user-select: none; }
+    .g-tray-piece.locked { opacity: .35; cursor: not-allowed; }
+    .g-tray-cell { border-radius: 5px; box-shadow: inset 0 -2px 0 rgba(0,0,0,.18), inset 0 2px 0 rgba(255,255,255,.25); }
+
+    .g-ghost { position: fixed; pointer-events: none; z-index: 9999; display: grid; gap: 3px; filter: drop-shadow(0 8px 14px rgba(0,0,0,.35)); }
+    .g-ghost-cell { border-radius: 6px; }
+
+    .g-status { padding: 12px 14px; background: var(--surface); border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 13px; color: var(--text-muted); text-align: center; margin-bottom: 12px; }
+    .g-status.warning { background: rgba(239,68,68,.1); color: var(--red); border-color: var(--red); }
+
+    .g-toast {
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(16px) scale(.9);
+      background: #1A1D23; color: #fff; padding: 10px 20px; border-radius: 30px; font-size: 13px; font-weight: 600;
+      opacity: 0; transition: opacity .25s, transform .3s;
+      z-index: 300; pointer-events: none; white-space: nowrap;
+    }
+    .g-toast.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+
+    .g-modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 400;
+      display: none; align-items: center; justify-content: center; padding: 24px; opacity: 0; transition: opacity .2s;
+    }
+    .g-modal.open { display: flex; opacity: 1; }
+    .g-modal-content {
+      background: var(--surface); border-radius: var(--radius); padding: 28px 24px; text-align: center;
+      max-width: 320px; width: 100%;
+    }
+    .g-modal-title { font-size: 19px; font-weight: 800; margin-bottom: 10px; }
+    .g-modal-score { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; }
+    .g-modal-score b { color: var(--text); font-size: 20px; }
+    .g-btn {
+      width: 100%; padding: 14px; background: var(--blue); color: #fff; border: none; border-radius: var(--radius-sm);
+      font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .g-btn:active { transform: scale(.97); }
+  </style>
+</head>
+<body>
+
+<div class="g-container">
+  <div class="g-header">
+    <div class="g-title">🎲 Кубики</div>
+    <button class="g-reset-btn" onclick="confirmNewGame()" aria-label="Новая игра">↻</button>
+  </div>
+
+  <div class="g-scores">
+    <div class="g-score-box">
+      <div class="g-score-label">Очки</div>
+      <div class="g-score-value" id="score-value">0</div>
+    </div>
+    <div class="g-score-box">
+      <div class="g-score-label">Рекорд</div>
+      <div class="g-score-value" id="best-value">0</div>
+    </div>
+  </div>
+
+  <div class="g-status" id="status"></div>
+
+  <div class="g-board-wrap">
+    <div class="g-board" id="board"></div>
+  </div>
+
+  <div class="g-tray" id="tray"></div>
+</div>
+
+<div class="g-modal" id="game-over-modal">
+  <div class="g-modal-content">
+    <div class="g-modal-title">Игра окончена</div>
+    <div class="g-modal-score">Очки: <b id="final-score">0</b></div>
+    <button class="g-btn" onclick="startNewGame()">Новая игра</button>
+  </div>
+</div>
+
+<div class="g-toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://heubrattlnikielnfheg.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhldWJyYXR0bG5pa2llbG5maGVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5NzYyMjcsImV4cCI6MjEwMDU1MjIyN30._lRs77YnsILFN_Ru4uR2wDWQFtAlazZh8UaaKa7fsnM';
+const USE_SUPABASE = SUPABASE_URL.indexOf('http') === 0 && SUPABASE_ANON_KEY.length > 20;
+let supabaseClient = null;
+if (USE_SUPABASE) {
+  try { supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
+  catch (e) { console.error('Supabase init error:', e); }
+}
+
+const LS_BEST = 'petzker_dice_best_v1';
+function loadLocalBest() { try { return parseInt(localStorage.getItem(LS_BEST), 10) || 0; } catch (e) { return 0; } }
+function saveLocalBest(v) { try { localStorage.setItem(LS_BEST, String(v)); } catch (e) { } }
+
+let playerId = null;
+let playerName = 'Гость';
+
+function resolvePlayer() {
+  const params = new URLSearchParams(location.search);
+  const uidParam = params.get('uid');
+  const nameParam = params.get('name');
+  if (uidParam) {
+    playerId = uidParam;
+    playerName = nameParam || ('User ' + uidParam);
+    return;
+  }
+  try {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+    if (u && u.id) {
+      playerId = String(u.id);
+      playerName = [u.first_name, u.last_name].filter(Boolean).join(' ').trim() || u.username || ('User ' + u.id);
+    }
+  } catch (e) { }
+}
+
+function haptic(kind) {
+  try {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (!tg || !tg.HapticFeedback) return;
+    if (kind === 'success' || kind === 'error' || kind === 'warning') tg.HapticFeedback.notificationOccurred(kind);
+    else tg.HapticFeedback.impactOccurred(kind || 'light');
+  } catch (e) { }
+}
+
+function askConfirm(msg) {
+  return new Promise((resolve) => {
+    try {
+      const tg = window.Telegram && window.Telegram.WebApp;
+      if (tg && typeof tg.showConfirm === 'function') { tg.showConfirm(msg, (ok) => resolve(!!ok)); return; }
+    } catch (e) { }
+    resolve(window.confirm(msg));
+  });
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'petzker-theme') {
+    document.documentElement.setAttribute('data-theme', e.data.value === 'dark' ? 'dark' : 'light');
+  }
+});
+
+// ═══════════════════════════════════════════════
+// GAME LOGIC
+// ═══════════════════════════════════════════════
+const BOARD_SIZE = 8;
+const COLORS = ['#EC6FA6', '#4FC3E8', '#F0921A', '#3DDC84', '#4A7DF0', '#F5D247'];
+
+const SHAPES = [
+  [[0,0]],
+  [[0,0],[0,1]],
+  [[0,0],[1,0]],
+  [[0,0],[0,1],[0,2]],
+  [[0,0],[1,0],[2,0]],
+  [[0,0],[1,0],[1,1]],
+  [[0,0],[0,1],[1,0]],
+  [[0,1],[1,0],[1,1]],
+  [[0,0],[0,1],[1,1]],
+  [[0,0],[0,1],[1,0],[1,1]],
+  [[0,0],[0,1],[0,2],[0,3]],
+  [[0,0],[1,0],[2,0],[3,0]],
+  [[0,0],[1,0],[2,0],[2,1]],
+  [[0,0],[0,1],[0,2],[1,0]],
+  [[0,0],[0,1],[1,1],[2,1]],
+  [[1,0],[1,1],[1,2],[0,2]],
+  [[0,1],[1,1],[2,1],[2,0]],
+  [[0,0],[1,0],[1,1],[1,2]],
+  [[0,1],[0,2],[1,0],[1,1]],
+  [[0,0],[0,1],[1,1],[1,2]],
+  [[0,0],[0,1],[0,2],[1,1]],
+  [[0,1],[1,0],[1,1],[2,1]],
+  [[0,0],[0,1],[0,2],[1,0],[2,0]],
+  [[0,1],[1,0],[1,1],[1,2],[2,1]],
+  [[0,0],[0,1],[1,0],[1,1],[2,0]],
+];
+
+let board = [];
+let boardCells = [];
+let tray = [null, null, null];
+let score = 0;
+let bestScore = 0;
+let gameOver = false;
+let pieceSeq = 0;
+let dragState = null;
+const DRAG_LIFT = 70;
+
+function shapeDims(shape) {
+  let maxR = 0, maxC = 0;
+  shape.forEach(([r, c]) => { if (r > maxR) maxR = r; if (c > maxC) maxC = c; });
+  return { rows: maxR + 1, cols: maxC + 1 };
+}
+
+function getShapeCells(piece, anchorRow, anchorCol) {
+  return piece.shape.map(([dr, dc]) => [anchorRow + dr, anchorCol + dc]);
+}
+
+function isValidPlacement(cells) {
+  return cells.every(([r, c]) => r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === 0);
+}
+
+function canPlaceAnywhere(piece) {
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (isValidPlacement(getShapeCells(piece, r, c))) return true;
+    }
+  }
+  return false;
+}
+
+function countEmptyCells() {
+  let n = 0;
+  for (let r = 0; r < BOARD_SIZE; r++) for (let c = 0; c < BOARD_SIZE; c++) if (board[r][c] === 0) n++;
+  return n;
+}
+
+function randomPiece() {
+  const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+  const colorIdx = 1 + Math.floor(Math.random() * COLORS.length);
+  return { id: 'p' + (pieceSeq++), shape, colorIdx, color: COLORS[colorIdx - 1] };
+}
+
+function generateTray() {
+  // Генерируем фигурки, пока не найдем все которые можно разместить
+  let candidates;
+  let attempts = 0;
+  const emptyCount = countEmptyCells();
+  
+  do {
+    candidates = [randomPiece(), randomPiece(), randomPiece()];
+    attempts++;
+  } while (attempts < 20 && emptyCount > 0 && !candidates.some(p => canPlaceAnywhere(p)));
+  
+  tray = candidates;
+  updateStatus();
+}
+
+function updateStatus() {
+  const statusEl = document.getElementById('status');
+  const emptyCount = countEmptyCells();
+  const placeable = tray.filter(p => p && canPlaceAnywhere(p)).length;
+  
+  if (gameOver) {
+    statusEl.textContent = 'Игра окончена';
+    statusEl.className = 'g-status warning';
+  } else if (placeable === 0 && tray.some(p => p)) {
+    statusEl.textContent = '⚠️ Нет доступных фигур';
+    statusEl.className = 'g-status warning';
+  } else if (emptyCount < 5) {
+    statusEl.textContent = '📍 Много заполнено';
+    statusEl.className = 'g-status warning';
+  } else {
+    statusEl.textContent = `${placeable} фигур${placeable === 1 ? 'ы' : ''} готовы к размещению`;
+    statusEl.className = 'g-status';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════════
+function buildBoardDom() {
+  const boardEl = document.getElementById('board');
+  boardEl.innerHTML = '';
+  boardCells = [];
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    const row = [];
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'g-cell';
+      boardEl.appendChild(cell);
+      row.push(cell);
+    }
+    boardCells.push(row);
+  }
+}
+
+function renderBoard() {
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      const el = boardCells[r][c];
+      el.classList.remove('preview-valid', 'preview-invalid');
+      const v = board[r][c];
+      if (v) { el.classList.add('filled'); el.style.background = COLORS[v - 1]; }
+      else { el.classList.remove('filled'); el.style.background = ''; }
+    }
+  }
+}
+
+function buildShapeGrid(piece, cellPx) {
+  const dims = shapeDims(piece.shape);
+  const el = document.createElement('div');
+  el.style.display = 'grid';
+  el.style.gridTemplateColumns = `repeat(${dims.cols}, ${cellPx}px)`;
+  el.style.gridTemplateRows = `repeat(${dims.rows}, ${cellPx}px)`;
+  el.style.gap = '3px';
+  const occupied = new Set(piece.shape.map(([r, c]) => r + '_' + c));
+  for (let r = 0; r < dims.rows; r++) {
+    for (let c = 0; c < dims.cols; c++) {
+      const cellEl = document.createElement('div');
+      cellEl.className = 'g-tray-cell';
+      if (occupied.has(r + '_' + c)) cellEl.style.background = piece.color;
+      cellEl.style.borderRadius = '5px';
+      if (occupied.has(r + '_' + c)) cellEl.style.boxShadow = 'inset 0 -2px 0 rgba(0,0,0,.18), inset 0 2px 0 rgba(255,255,255,.25)';
+      el.appendChild(cellEl);
+    }
+  }
+  return el;
+}
+
+function renderTray() {
+  const trayEl = document.getElementById('tray');
+  trayEl.innerHTML = '';
+  tray.forEach((piece, idx) => {
+    const slot = document.createElement('div');
+    slot.className = 'g-tray-slot';
+    if (piece) {
+      const canPlace = canPlaceAnywhere(piece);
+      const dims = shapeDims(piece.shape);
+      const maxDim = Math.max(dims.rows, dims.cols);
+      const cellPx = Math.max(14, Math.min(26, Math.floor(84 / maxDim)));
+      const pieceEl = buildShapeGrid(piece, cellPx);
+      pieceEl.className = 'g-tray-piece' + (canPlace ? '' : ' locked');
+      if (canPlace) {
+        pieceEl.addEventListener('pointerdown', (e) => startDrag(e, idx, pieceEl));
+      }
+      slot.appendChild(pieceEl);
+    }
+    trayEl.appendChild(slot);
+  });
+}
+
+function updateScoreUI() {
+  document.getElementById('score-value').textContent = score;
+  document.getElementById('best-value').textContent = bestScore;
+}
+
+// ═══════════════════════════════════════════════
+// DRAG & DROP
+// ═══════════════════════════════════════════════
+function startDrag(e, idx, pieceEl) {
+  if (gameOver || !tray[idx] || !canPlaceAnywhere(tray[idx])) return;
+  e.preventDefault();
+
+  const piece = tray[idx];
+  const dims = shapeDims(piece.shape);
+  const boardEl = document.getElementById('board');
+  const boardRect = boardEl.getBoundingClientRect();
+  const cellSize = boardRect.width / BOARD_SIZE;
+
+  const ghost = buildShapeGrid(piece, cellSize);
+  ghost.className = 'g-ghost';
+  ghost.style.width = (dims.cols * cellSize) + 'px';
+  ghost.style.height = (dims.rows * cellSize) + 'px';
+  document.body.appendChild(ghost);
+  pieceEl.style.opacity = '0.2';
+
+  dragState = { idx, piece, ghost, rows: dims.rows, cols: dims.cols, cellSize, boardRect, anchorRow: null, anchorCol: null, valid: false };
+  moveGhost(e.clientX, e.clientY);
+
+  const onMove = (ev) => moveGhost(ev.clientX, ev.clientY);
+  const onUp = () => {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
+    endDrag(pieceEl);
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
+}
+
+function moveGhost(clientX, clientY) {
+  if (!dragState) return;
+  const { ghost, rows, cols, cellSize } = dragState;
+  const w = cols * cellSize, h = rows * cellSize;
+  ghost.style.left = (clientX - w / 2) + 'px';
+  ghost.style.top = (clientY - DRAG_LIFT - h / 2) + 'px';
+  updatePreview(clientX, clientY - DRAG_LIFT);
+}
+
+function updatePreview(centerX, centerY) {
+  clearPreview();
+  const { piece, rows, cols, cellSize, boardRect } = dragState;
+  const localX = centerX - boardRect.left - (cols * cellSize) / 2;
+  const localY = centerY - boardRect.top - (rows * cellSize) / 2;
+  const anchorCol = Math.round(localX / cellSize);
+  const anchorRow = Math.round(localY / cellSize);
+
+  if (anchorRow < -rows - 1 || anchorRow > BOARD_SIZE || anchorCol < -cols - 1 || anchorCol > BOARD_SIZE) {
+    dragState.anchorRow = null; dragState.anchorCol = null; dragState.valid = false;
+    return;
+  }
+
+  const cells = getShapeCells(piece, anchorRow, anchorCol);
+  const valid = isValidPlacement(cells);
+  cells.forEach(([r, c]) => {
+    if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE) {
+      boardCells[r][c].classList.add(valid ? 'preview-valid' : 'preview-invalid');
+    }
+  });
+  dragState.anchorRow = anchorRow;
+  dragState.anchorCol = anchorCol;
+  dragState.valid = valid;
+}
+
+function clearPreview() {
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      boardCells[r][c].classList.remove('preview-valid', 'preview-invalid');
+    }
+  }
+}
+
+function endDrag(pieceEl) {
+  if (!dragState) return;
+  const { idx, ghost, anchorRow, anchorCol, valid } = dragState;
+  clearPreview();
+  ghost.remove();
+  pieceEl.style.opacity = '1';
+
+  if (valid && anchorRow !== null) {
+    commitPlacement(idx, anchorRow, anchorCol);
+  } else {
+    haptic('light');
+  }
+  dragState = null;
+}
+
+// ═══════════════════════════════════════════════
+// PLACEMENT & LINE CLEARING
+// ═══════════════════════════════════════════════
+function clearLines() {
+  const fullRows = [];
+  for (let r = 0; r < BOARD_SIZE; r++) if (board[r].every(v => v !== 0)) fullRows.push(r);
+  const fullCols = [];
+  for (let c = 0; c < BOARD_SIZE; c++) {
+    let full = true;
+    for (let r = 0; r < BOARD_SIZE; r++) if (board[r][c] === 0) { full = false; break; }
+    if (full) fullCols.push(c);
+  }
+  const total = fullRows.length + fullCols.length;
+  if (!total) return Promise.resolve(0);
+
+  fullRows.forEach(r => { for (let c = 0; c < BOARD_SIZE; c++) board[r][c] = 0; });
+  fullCols.forEach(c => { for (let r = 0; r < BOARD_SIZE; r++) board[r][c] = 0; });
+  renderBoard();
+  return Promise.resolve(total);
+}
+
+function commitPlacement(idx, anchorRow, anchorCol) {
+  const piece = tray[idx];
+  const cells = getShapeCells(piece, anchorRow, anchorCol);
+  cells.forEach(([r, c]) => { board[r][c] = piece.colorIdx; });
+  tray[idx] = null;
+  score += piece.shape.length;
+  renderBoard();
+  renderTray();
+  updateScoreUI();
+  haptic('light');
+
+  clearLines().then((cleared) => {
+    if (cleared > 0) {
+      const bonus = 10 * cleared * cleared;
+      score += bonus;
+      updateScoreUI();
+      showToast(cleared === 1 ? `+${bonus}` : `🔥 ×${cleared}! +${bonus}`);
+      haptic('success');
+    }
+
+    if (tray.every(p => p === null)) {
+      generateTray();
+      renderTray();
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      updateScoreUI();
+      saveLocalBest(bestScore);
+    }
+
+    checkGameOver();
+  });
+}
+
+function checkGameOver() {
+  const stillPlayable = tray.some(p => p && canPlaceAnywhere(p));
+  if (!stillPlayable) triggerGameOver();
+  updateStatus();
+}
+
+function triggerGameOver() {
+  gameOver = true;
+  document.getElementById('final-score').textContent = score;
+  document.getElementById('game-over-modal').classList.add('open');
+  haptic('error');
+  updateStatus();
+}
+
+async function confirmNewGame() {
+  if (!gameOver && score > 0) {
+    const ok = await askConfirm('Начать новую игру? Счёт будет потерян.');
+    if (!ok) return;
+  }
+  startNewGame();
+}
+
+function startNewGame() {
+  board = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(0));
+  score = 0;
+  gameOver = false;
+  document.getElementById('game-over-modal').classList.remove('open');
+  renderBoard();
+  generateTray();
+  renderTray();
+  updateScoreUI();
+  updateStatus();
+  haptic('light');
+}
+
+async function init() {
+  resolvePlayer();
+  buildBoardDom();
+  board = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(0));
+  renderBoard();
+
+  bestScore = loadLocalBest();
+  updateScoreUI();
+
+  generateTray();
+  renderTray();
+
+  if (window.Telegram && window.Telegram.WebApp) {
+    try { window.Telegram.WebApp.ready(); } catch (e) { }
+  }
+}
+
+init();
+</script>
+</body>
+</html>

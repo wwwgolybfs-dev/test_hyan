@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<script>
+  (function () {
+    var params = new URLSearchParams(location.search);
+    var t = params.get('theme') === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Минёр — Petzker Cookware</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    :root {
+      --blue: #2E7BEE;
+      --orange: #F0921A;
+      --green: #22C55E;
+      --red: #EF4444;
+      --bg: #F6F8FA;
+      --surface: #FFFFFF;
+      --border: #E8ECF0;
+      --text: #1A1D23;
+      --text-muted: #8A94A0;
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+    [data-theme="dark"] {
+      --bg: #14171C;
+      --surface: #1C2028;
+      --border: #2A2F38;
+      --text: #ECEEF1;
+      --text-muted: #8B94A0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: auto;
+      transition: background-color .2s;
+    }
+
+    .m-container { max-width: 480px; margin: 0 auto; padding: 16px; }
+
+    .m-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .m-title { font-size: 18px; font-weight: 800; }
+    .m-timer { font-size: 14px; font-weight: 600; color: var(--text-muted); }
+
+    .m-difficulty { display: flex; gap: 8px; margin-bottom: 16px; }
+    .m-diff-btn {
+      flex: 1; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; color: var(--text-muted);
+    }
+    .m-diff-btn.active { background: var(--blue); color: white; border-color: var(--blue); }
+    .m-diff-btn:active { transform: scale(.97); }
+
+    .m-board-wrap { background: var(--surface); border-radius: var(--radius); padding: 12px; margin-bottom: 16px; border: 1px solid var(--border); }
+    .m-board {
+      display: inline-grid;
+      gap: 2px;
+      background: #C0C0C0;
+      padding: 2px;
+      border: 3px outset #DFDFDF;
+    }
+    .m-cell {
+      width: 28px; height: 28px;
+      border: 2px outset #DFDFDF;
+      background: linear-gradient(135deg, #EFEFEF 0%, #DFDFDF 100%);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      transition: all .05s;
+      color: var(--blue);
+    }
+    .m-cell:active { border-style: inset; }
+    .m-cell.revealed {
+      border-style: inset;
+      background: #BFBFBF;
+      border-color: #C0C0C0;
+      cursor: default;
+      color: var(--text);
+    }
+    .m-cell.mine.revealed { background: #FF0000; color: white; font-weight: 800; }
+    .m-cell.flag { position: relative; }
+    .m-cell.flag::after { content: '🚩'; position: absolute; font-size: 14px; }
+
+    .m-stats { display: flex; gap: 12px; margin-bottom: 16px; }
+    .m-stat { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; text-align: center; }
+    .m-stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+    .m-stat-value { font-size: 18px; font-weight: 700; }
+
+    .m-controls { display: flex; gap: 8px; margin-bottom: 16px; }
+    .m-btn {
+      flex: 1; padding: 12px; background: var(--blue); color: white; border: none; border-radius: var(--radius-sm);
+      font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s;
+    }
+    .m-btn:hover { opacity: .9; }
+    .m-btn:active { transform: scale(.97); }
+
+    .m-leaderboard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+    .m-lb-title { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+    .m-lb-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 12px; border-bottom: 1px solid var(--border); }
+    .m-lb-row:last-child { border-bottom: none; }
+    .m-lb-row.me { color: var(--blue); font-weight: 700; }
+    .m-lb-rank { width: 20px; font-weight: 700; color: var(--text-muted); }
+    .m-lb-name { flex: 1; }
+    .m-lb-time { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    .m-modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 300;
+      display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity .2s;
+    }
+    .m-modal.open { display: flex; opacity: 1; }
+    .m-modal-content {
+      background: var(--surface); border-radius: var(--radius); padding: 28px 24px; text-align: center; max-width: 300px;
+    }
+    .m-modal-title { font-size: 19px; font-weight: 800; margin-bottom: 12px; }
+    .m-modal-text { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; }
+    .m-modal-btn { width: 100%; padding: 12px; background: var(--blue); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer; font-family: inherit; font-weight: 600; }
+
+    .m-toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(16px) scale(.9);
+      background: #333; color: white; padding: 10px 16px; border-radius: 20px; font-size: 12px; font-weight: 600;
+      opacity: 0; transition: opacity .25s, transform .3s;
+      z-index: 400; pointer-events: none;
+    }
+    .m-toast.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  </style>
+</head>
+<body>
+
+<div class="m-container">
+  <div class="m-header">
+    <div class="m-title">💣 Минёр</div>
+    <div class="m-timer" id="timer">0:00</div>
+  </div>
+
+  <div class="m-difficulty">
+    <button class="m-diff-btn active" onclick="setDifficulty('easy')">Easy 8×8</button>
+    <button class="m-diff-btn" onclick="setDifficulty('medium')">Medium 12×12</button>
+    <button class="m-diff-btn" onclick="setDifficulty('hard')">Hard 16×16</button>
+  </div>
+
+  <div class="m-stats">
+    <div class="m-stat">
+      <div class="m-stat-label">Флаги</div>
+      <div class="m-stat-value" id="flags">0</div>
+    </div>
+    <div class="m-stat">
+      <div class="m-stat-label">Мин</div>
+      <div class="m-stat-value" id="mines">10</div>
+    </div>
+    <div class="m-stat">
+      <div class="m-stat-label">Открыто</div>
+      <div class="m-stat-value" id="revealed">0</div>
+    </div>
+  </div>
+
+  <div class="m-board-wrap">
+    <div class="m-board" id="board"></div>
+  </div>
+
+  <div class="m-controls">
+    <button class="m-btn" onclick="init()">🔄 Новая игра</button>
+  </div>
+
+  <div class="m-leaderboard">
+    <div class="m-lb-title">🏆 Рейтинг</div>
+    <div id="leaderboard"></div>
+  </div>
+</div>
+
+<div class="m-modal" id="game-over-modal">
+  <div class="m-modal-content">
+    <div class="m-modal-title" id="modal-title">Вы выиграли!</div>
+    <div class="m-modal-text" id="modal-text">Время: 45 секунд</div>
+    <button class="m-modal-btn" onclick="init()">Новая игра</button>
+  </div>
+</div>
+
+<div class="m-toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://heubrattlnikielnfheg.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhldWJyYXR0bG5pa2llbG5maGVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5NzYyMjcsImV4cCI6MjEwMDU1MjIyN30._lRs77YnsILFN_Ru4uR2wDWQFtAlazZh8UaaKa7fsnM';
+const USE_SUPABASE = SUPABASE_URL.indexOf('http') === 0 && SUPABASE_ANON_KEY.length > 20;
+let supabaseClient = null;
+if (USE_SUPABASE) {
+  try { supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
+  catch (e) { console.error('Supabase error:', e); }
+}
+
+let playerId = null, playerName = 'Гость';
+function resolvePlayer() {
+  const params = new URLSearchParams(location.search);
+  const uid = params.get('uid'), name = params.get('name');
+  if (uid) { playerId = uid; playerName = name || 'User ' + uid; return; }
+  try {
+    const tg = window.Telegram?.WebApp;
+    const u = tg?.initDataUnsafe?.user;
+    if (u?.id) {
+      playerId = String(u.id);
+      playerName = [u.first_name, u.last_name].filter(Boolean).join(' ').trim() || u.username || 'User ' + u.id;
+    }
+  } catch (e) { }
+}
+
+function haptic(k) { try { window.Telegram?.WebApp?.HapticFeedback?.[k === 'success' || k === 'error' || k === 'warning' ? 'notificationOccurred' : 'impactOccurred'](k || 'light'); } catch (e) { } }
+function showToast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000); }
+
+const DIFFICULTIES = {
+  easy: { rows: 8, cols: 8, mines: 10 },
+  medium: { rows: 12, cols: 12, mines: 30 },
+  hard: { rows: 16, cols: 16, mines: 40 }
+};
+
+let difficulty = 'easy';
+let cells = [];
+let board = [];
+let gameOver = false;
+let won = false;
+let startTime = null;
+let timerInterval = null;
+let flagCount = 0;
+
+function setDifficulty(d) {
+  difficulty = d;
+  document.querySelectorAll('.m-diff-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  init();
+}
+
+function getConfig() {
+  return DIFFICULTIES[difficulty];
+}
+
+function initBoard() {
+  const cfg = getConfig();
+  board = Array(cfg.rows).fill(null).map(() => Array(cfg.cols).fill(0));
+  cells = Array(cfg.rows).fill(null).map((_, r) => Array(cfg.cols).fill(null).map((_, c) => ({ r, c, mine: false, revealed: false, flag: false, num: 0 })));
+
+  let placed = 0;
+  while (placed < cfg.mines) {
+    const r = Math.floor(Math.random() * cfg.rows);
+    const c = Math.floor(Math.random() * cfg.cols);
+    if (!cells[r][c].mine) { cells[r][c].mine = true; placed++; }
+  }
+
+  for (let r = 0; r < cfg.rows; r++) {
+    for (let c = 0; c < cfg.cols; c++) {
+      if (!cells[r][c].mine) {
+        let count = 0;
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            const nr = r + dr, nc = c + dc;
+            if (nr >= 0 && nr < cfg.rows && nc >= 0 && nc < cfg.cols && cells[nr][nc].mine) count++;
+          }
+        }
+        cells[r][c].num = count;
+      }
+    }
+  }
+}
+
+function renderBoard() {
+  const cfg = getConfig();
+  const boardEl = document.getElementById('board');
+  boardEl.innerHTML = '';
+  boardEl.style.gridTemplateColumns = `repeat(${cfg.cols}, 28px)`;
+
+  for (let r = 0; r < cfg.rows; r++) {
+    for (let c = 0; c < cfg.cols; c++) {
+      const cell = cells[r][c];
+      const div = document.createElement('div');
+      div.className = 'm-cell';
+      if (cell.flag) div.classList.add('flag');
+      if (cell.revealed) {
+        div.classList.add('revealed');
+        if (cell.mine) { div.classList.add('mine'); div.textContent = '💣'; }
+        else if (cell.num > 0) div.textContent = cell.num;
+      }
+      div.addEventListener('click', () => revealCell(r, c));
+      div.addEventListener('contextmenu', (e) => { e.preventDefault(); toggleFlag(r, c); });
+      boardEl.appendChild(div);
+    }
+  }
+
+  updateStats();
+}
+
+function revealCell(r, c) {
+  if (gameOver || cells[r][c].revealed || cells[r][c].flag) return;
+  if (!startTime) { startTime = Date.now(); startTimer(); }
+
+  if (cells[r][c].mine) { endGame(false); return; }
+
+  if (cells[r][c].num === 0) {
+    cells[r][c].revealed = true;
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < getConfig().rows && nc >= 0 && nc < getConfig().cols && !cells[nr][nc].revealed) revealCell(nr, nc);
+      }
+    }
+  } else {
+    cells[r][c].revealed = true;
+  }
+
+  renderBoard();
+  checkWin();
+}
+
+function toggleFlag(r, c) {
+  if (gameOver || cells[r][c].revealed) return;
+  if (!startTime) { startTime = Date.now(); startTimer(); }
+  cells[r][c].flag = !cells[r][c].flag;
+  if (cells[r][c].flag) flagCount++; else flagCount--;
+  renderBoard();
+}
+
+function updateStats() {
+  const cfg = getConfig();
+  let revealed = 0;
+  for (let r = 0; r < cfg.rows; r++) for (let c = 0; c < cfg.cols; c++) if (cells[r][c].revealed) revealed++;
+  document.getElementById('flags').textContent = flagCount;
+  document.getElementById('mines').textContent = cfg.mines;
+  document.getElementById('revealed').textContent = revealed;
+}
+
+function startTimer() {
+  timerInterval = setInterval(() => {
+    if (!gameOver) {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const m = Math.floor(elapsed / 60);
+      const s = elapsed % 60;
+      document.getElementById('timer').textContent = `${m}:${String(s).padStart(2, '0')}`;
+    }
+  }, 100);
+}
+
+function checkWin() {
+  const cfg = getConfig();
+  let revealed = 0;
+  for (let r = 0; r < cfg.rows; r++) for (let c = 0; c < cfg.cols; c++) if (cells[r][c].revealed) revealed++;
+  const needed = cfg.rows * cfg.cols - cfg.mines;
+  if (revealed === needed) endGame(true);
+}
+
+function endGame(won_) {
+  gameOver = true;
+  won = won_;
+  clearInterval(timerInterval);
+
+  const cfg = getConfig();
+  for (let r = 0; r < cfg.rows; r++) {
+    for (let c = 0; c < cfg.cols; c++) {
+      if (cells[r][c].mine) cells[r][c].revealed = true;
+    }
+  }
+  renderBoard();
+
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const m = Math.floor(elapsed / 60);
+  const s = elapsed % 60;
+  const timeStr = `${m}:${String(s).padStart(2, '0')}`;
+
+  document.getElementById('modal-title').textContent = won_ ? '🎉 Вы выиграли!' : '💥 Вы проиграли';
+  document.getElementById('modal-text').textContent = `Время: ${timeStr}`;
+  document.getElementById('game-over-modal').classList.add('open');
+
+  if (won_ && USE_SUPABASE && playerId) persistScore(elapsed);
+  haptic(won_ ? 'success' : 'error');
+}
+
+async function persistScore(time) {
+  try {
+    await supabaseClient.from('minesweeper_scores').insert([{ telegram_user_id: playerId, name: playerName, difficulty, time, completed_at: new Date().toISOString() }]);
+    loadLeaderboard();
+  } catch (e) { console.error('persistScore error:', e); }
+}
+
+async function loadLeaderboard() {
+  const lb = document.getElementById('leaderboard');
+  if (!USE_SUPABASE) { lb.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">Локальный режим</div>'; return; }
+  try {
+    const { data } = await supabaseClient.from('minesweeper_scores').select('telegram_user_id,name,time').eq('difficulty', difficulty).order('time', { ascending: true }).limit(5);
+    if (!data?.length) { lb.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">Нет результатов</div>'; return; }
+    lb.innerHTML = data.map((row, i) => `
+      <div class="m-lb-row ${playerId && String(row.telegram_user_id) === String(playerId) ? 'me' : ''}">
+        <span class="m-lb-rank">${i + 1}</span>
+        <span class="m-lb-name">${row.name || 'Игрок'}</span>
+        <span class="m-lb-time">${Math.floor(row.time / 60)}:${String(row.time % 60).padStart(2, '0')}</span>
+      </div>`).join('');
+  } catch (e) { console.error('loadLeaderboard error:', e); }
+}
+
+function init() {
+  resolvePlayer();
+  gameOver = false;
+  won = false;
+  startTime = null;
+  flagCount = 0;
+  clearInterval(timerInterval);
+  document.getElementById('timer').textContent = '0:00';
+  document.getElementById('game-over-modal').classList.remove('open');
+  initBoard();
+  renderBoard();
+  loadLeaderboard();
+  if (window.Telegram?.WebApp) try { window.Telegram.WebApp.ready(); } catch (e) { }
+}
+
+init();
+</script>
+</body>
+</html>
