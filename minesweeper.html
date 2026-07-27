@@ -8,140 +8,190 @@
     document.documentElement.setAttribute('data-theme', t);
   })();
 </script>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Минёр — Petzker Cookware</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <style>
-    :root {
-      --blue: #2E7BEE;
-      --orange: #F0921A;
-      --green: #22C55E;
-      --red: #EF4444;
-      --bg: #F6F8FA;
-      --surface: #FFFFFF;
-      --border: #E8ECF0;
-      --text: #1A1D23;
-      --text-muted: #8A94A0;
-      --radius: 16px;
-      --radius-sm: 10px;
-    }
-    [data-theme="dark"] {
-      --bg: #14171C;
-      --surface: #1C2028;
-      --border: #2A2F38;
-      --text: #ECEEF1;
-      --text-muted: #8B94A0;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-    html, body { height: 100%; }
-    body {
-      font-family: 'Inter', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      overflow: auto;
-      transition: background-color .2s;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Минёр — Petzker Cookware</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --blue:    #2E7BEE;
+    --orange:  #F0921A;
+    --green:   #22C55E;
+    --red:     #EF4444;
+    --purple:  #A855F7;
+    --bg:      #F6F8FA;
+    --surface: #FFFFFF;
+    --border:  #E8ECF0;
+    --text:    #1A1D23;
+    --text-muted: #8A94A0;
+    --radius:    16px;
+    --radius-sm: 10px;
+    --board-bg:  #1B2440;
+    --cell-border: #2A2F38;
+  }
+  [data-theme="dark"] {
+    --bg:      #14171C;
+    --surface: #1C2028;
+    --border:  #2A2F38;
+    --text:    #ECEEF1;
+    --text-muted: #8B94A0;
+    --board-bg:   #12182C;
+    --cell-border: #3A3F48;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+    transition: background-color .2s, color .2s;
+  }
 
-    .m-container { max-width: 480px; margin: 0 auto; padding: 16px; }
+  .m-container { max-width: 460px; margin: 0 auto; padding: 16px 16px 28px; }
 
-    .m-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-    .m-title { font-size: 18px; font-weight: 800; }
-    .m-timer { font-size: 14px; font-weight: 600; color: var(--text-muted); }
+  /* ── HEADER ── */
+  .m-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .m-title { font-size: 18px; font-weight: 800; }
+  .m-reset-btn {
+    width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text-muted); cursor: pointer; font-size: 16px;
+    display: flex; align-items: center; justify-content: center; transition: all .15s;
+  }
+  .m-reset-btn:hover { color: var(--blue); border-color: var(--blue); }
+  .m-reset-btn:active { transform: scale(.9) rotate(-25deg); }
+  .m-player { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; }
 
-    .m-difficulty { display: flex; gap: 8px; margin-bottom: 16px; }
-    .m-diff-btn {
-      flex: 1; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
-      font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; color: var(--text-muted);
-    }
-    .m-diff-btn.active { background: var(--blue); color: white; border-color: var(--blue); }
-    .m-diff-btn:active { transform: scale(.97); }
+  /* ── DIFFICULTY ── */
+  .m-difficulty { display: flex; gap: 8px; margin-bottom: 16px; }
+  .m-diff-btn {
+    flex: 1; padding: 10px 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; color: var(--text-muted);
+    font-family: inherit;
+  }
+  .m-diff-btn.active { background: var(--blue); color: white; border-color: var(--blue); }
+  .m-diff-btn:active { transform: scale(.97); }
 
-    .m-board-wrap { background: var(--surface); border-radius: var(--radius); padding: 12px; margin-bottom: 16px; border: 1px solid var(--border); }
-    .m-board {
-      display: inline-grid;
-      gap: 2px;
-      background: #C0C0C0;
-      padding: 2px;
-      border: 3px outset #DFDFDF;
-    }
-    .m-cell {
-      width: 28px; height: 28px;
-      border: 2px outset #DFDFDF;
-      background: linear-gradient(135deg, #EFEFEF 0%, #DFDFDF 100%);
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      user-select: none;
-      transition: all .05s;
-      color: var(--blue);
-    }
-    .m-cell:active { border-style: inset; }
-    .m-cell.revealed {
-      border-style: inset;
-      background: #BFBFBF;
-      border-color: #C0C0C0;
-      cursor: default;
-      color: var(--text);
-    }
-    .m-cell.mine.revealed { background: #FF0000; color: white; font-weight: 800; }
-    .m-cell.flag { position: relative; }
-    .m-cell.flag::after { content: '🚩'; position: absolute; font-size: 14px; }
+  /* ── STATS ── */
+  .m-stats { display: flex; gap: 10px; margin-bottom: 16px; }
+  .m-stat-box {
+    flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 10px 14px; text-align: center;
+  }
+  .m-stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+  .m-stat-value { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .m-stat-value.timer { color: var(--blue); }
 
-    .m-stats { display: flex; gap: 12px; margin-bottom: 16px; }
-    .m-stat { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; text-align: center; }
-    .m-stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
-    .m-stat-value { font-size: 18px; font-weight: 700; }
+  /* ── BOARD ── */
+  .m-board-wrap {
+    background: var(--board-bg); border-radius: var(--radius); padding: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.18); margin-bottom: 16px; position: relative;
+  }
+  .m-board {
+    display: grid;
+    gap: 2px;
+    aspect-ratio: 1;
+    margin: 0 auto;
+  }
+  .m-cell {
+    border-radius: 4px;
+    background: rgba(255,255,255,0.07);
+    transition: background-color .1s, transform .1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    user-select: none;
+    color: var(--text);
+    position: relative;
+  }
+  .m-cell.revealed {
+    background: rgba(255,255,255,0.15);
+    cursor: default;
+  }
+  .m-cell.mine.revealed {
+    background: var(--red);
+    color: white;
+  }
+  .m-cell.flag::after {
+    content: '🚩';
+    font-size: 16px;
+  }
+  .m-cell:active:not(.revealed) { transform: scale(.92); }
+  .m-cell .num-1 { color: var(--blue); }
+  .m-cell .num-2 { color: var(--green); }
+  .m-cell .num-3 { color: var(--red); }
+  .m-cell .num-4 { color: #1A237E; }
+  .m-cell .num-5 { color: #7B1FA2; }
+  .m-cell .num-6 { color: #00695C; }
+  .m-cell .num-7 { color: #4E342E; }
+  .m-cell .num-8 { color: #424242; }
 
-    .m-controls { display: flex; gap: 8px; margin-bottom: 16px; }
-    .m-btn {
-      flex: 1; padding: 12px; background: var(--blue); color: white; border: none; border-radius: var(--radius-sm);
-      font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s;
-    }
-    .m-btn:hover { opacity: .9; }
-    .m-btn:active { transform: scale(.97); }
+  /* ── CONTROL ── */
+  .m-controls { display: flex; gap: 8px; margin-bottom: 16px; }
+  .m-btn {
+    flex: 1; padding: 12px; background: var(--blue); color: white; border: none; border-radius: var(--radius-sm);
+    font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
+    transition: opacity .15s, transform .15s;
+  }
+  .m-btn:active { transform: scale(.97); }
+  .m-btn:hover { opacity: .9; }
 
-    .m-leaderboard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
-    .m-lb-title { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
-    .m-lb-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 12px; border-bottom: 1px solid var(--border); }
-    .m-lb-row:last-child { border-bottom: none; }
-    .m-lb-row.me { color: var(--blue); font-weight: 700; }
-    .m-lb-rank { width: 20px; font-weight: 700; color: var(--text-muted); }
-    .m-lb-name { flex: 1; }
-    .m-lb-time { font-weight: 700; font-variant-numeric: tabular-nums; }
+  /* ── LEADERBOARD ── */
+  .m-leaderboard { margin-bottom: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .m-lb-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+  .m-lb-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+  .m-lb-row:last-child { border-bottom: none; }
+  .m-lb-row.me { color: var(--blue); font-weight: 700; }
+  .m-lb-rank { width: 18px; color: var(--text-muted); font-weight: 700; }
+  .m-lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .m-lb-time { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .m-lb-empty { font-size: 12.5px; color: var(--text-muted); padding: 4px 0; }
 
-    .m-modal {
-      position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 300;
-      display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity .2s;
-    }
-    .m-modal.open { display: flex; opacity: 1; }
-    .m-modal-content {
-      background: var(--surface); border-radius: var(--radius); padding: 28px 24px; text-align: center; max-width: 300px;
-    }
-    .m-modal-title { font-size: 19px; font-weight: 800; margin-bottom: 12px; }
-    .m-modal-text { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; }
-    .m-modal-btn { width: 100%; padding: 12px; background: var(--blue); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer; font-family: inherit; font-weight: 600; }
+  /* ── TOAST ── */
+  .m-toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(16px) scale(.9);
+    background: #1A1D23; color: #fff; padding: 10px 20px; border-radius: 30px; font-size: 13px; font-weight: 600;
+    opacity: 0; transition: opacity .25s, transform .3s cubic-bezier(.34,1.56,.64,1);
+    z-index: 300; pointer-events: none; white-space: nowrap; max-width: 90vw; text-align: center;
+  }
+  .m-toast.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 
-    .m-toast {
-      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(16px) scale(.9);
-      background: #333; color: white; padding: 10px 16px; border-radius: 20px; font-size: 12px; font-weight: 600;
-      opacity: 0; transition: opacity .25s, transform .3s;
-      z-index: 400; pointer-events: none;
-    }
-    .m-toast.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
-  </style>
+  /* ── MODAL ── */
+  .m-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 400;
+    display: none; align-items: center; justify-content: center; padding: 24px; opacity: 0; transition: opacity .2s;
+  }
+  .m-overlay.open { display: flex; opacity: 1; }
+  .m-modal {
+    background: var(--surface); border-radius: var(--radius); padding: 28px 24px; text-align: center;
+    max-width: 320px; width: 100%; animation: modalPop .3s cubic-bezier(.2,.9,.3,1.2);
+  }
+  @keyframes modalPop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .m-modal-emoji  { font-size: 40px; margin-bottom: 8px; }
+  .m-modal-title  { font-size: 19px; font-weight: 800; margin-bottom: 10px; }
+  .m-modal-score  { font-size: 14px; color: var(--text-muted); margin-bottom: 4px; }
+  .m-modal-score b{ color: var(--text); font-size: 20px; }
+  .m-modal-best   { font-size: 13px; color: var(--orange); font-weight: 600; margin-bottom: 20px; min-height: 18px; }
+  .m-btn-primary {
+    width: 100%; padding: 14px; background: var(--blue); color: #fff; border: none; border-radius: var(--radius-sm);
+    font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: opacity .15s, transform .15s;
+  }
+  .m-btn-primary:active { transform: scale(.97); }
+</style>
 </head>
 <body>
-
 <div class="m-container">
   <div class="m-header">
     <div class="m-title">💣 Минёр</div>
-    <div class="m-timer" id="timer">0:00</div>
+    <button class="m-reset-btn" onclick="confirmNewGame()" aria-label="Новая игра">↻</button>
   </div>
+  <div class="m-player" id="player-name"></div>
 
   <div class="m-difficulty">
     <button class="m-diff-btn active" onclick="setDifficulty('easy')">Easy 8×8</button>
@@ -150,17 +200,17 @@
   </div>
 
   <div class="m-stats">
-    <div class="m-stat">
-      <div class="m-stat-label">Флаги</div>
+    <div class="m-stat-box">
+      <div class="m-stat-label">⏱ Время</div>
+      <div class="m-stat-value timer" id="timer">0:00</div>
+    </div>
+    <div class="m-stat-box">
+      <div class="m-stat-label">🚩 Флаги</div>
       <div class="m-stat-value" id="flags">0</div>
     </div>
-    <div class="m-stat">
-      <div class="m-stat-label">Мин</div>
+    <div class="m-stat-box">
+      <div class="m-stat-label">💣 Мины</div>
       <div class="m-stat-value" id="mines">10</div>
-    </div>
-    <div class="m-stat">
-      <div class="m-stat-label">Открыто</div>
-      <div class="m-stat-value" id="revealed">0</div>
     </div>
   </div>
 
@@ -169,151 +219,277 @@
   </div>
 
   <div class="m-controls">
-    <button class="m-btn" onclick="init()">🔄 Новая игра</button>
+    <button class="m-btn" onclick="confirmNewGame()">🔄 Новая игра</button>
   </div>
 
   <div class="m-leaderboard">
-    <div class="m-lb-title">🏆 Рейтинг</div>
-    <div id="leaderboard"></div>
+    <div class="m-lb-title">🏆 Рейтинг (лучшее время)</div>
+    <div class="m-lb-list" id="lb-list"><div class="m-lb-empty">Загрузка…</div></div>
   </div>
 </div>
 
-<div class="m-modal" id="game-over-modal">
-  <div class="m-modal-content">
+<div class="m-overlay" id="game-over-overlay">
+  <div class="m-modal">
+    <div class="m-modal-emoji" id="modal-emoji">🎉</div>
     <div class="m-modal-title" id="modal-title">Вы выиграли!</div>
-    <div class="m-modal-text" id="modal-text">Время: 45 секунд</div>
-    <button class="m-modal-btn" onclick="init()">Новая игра</button>
+    <div class="m-modal-score">Время: <b id="final-time">0:00</b></div>
+    <div class="m-modal-best" id="final-best-note"></div>
+    <button class="m-btn-primary" onclick="init()">Новая игра</button>
   </div>
 </div>
 
 <div class="m-toast" id="toast"></div>
 
 <script>
-const SUPABASE_URL = 'https://heubrattlnikielnfheg.supabase.co';
+// ═══════════════════════════════════════════════
+// SUPABASE CONFIG
+// ═══════════════════════════════════════════════
+const SUPABASE_URL      = 'https://heubrattlnikielnfheg.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhldWJyYXR0bG5pa2llbG5maGVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5NzYyMjcsImV4cCI6MjEwMDU1MjIyN30._lRs77YnsILFN_Ru4uR2wDWQFtAlazZh8UaaKa7fsnM';
-const USE_SUPABASE = SUPABASE_URL.indexOf('http') === 0 && SUPABASE_ANON_KEY.length > 20;
-let supabaseClient = null;
+const USE_SUPABASE = SUPABASE_URL.startsWith('http') && SUPABASE_ANON_KEY.length > 20;
+let sbClient = null;
 if (USE_SUPABASE) {
-  try { supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
-  catch (e) { console.error('Supabase error:', e); }
+  try { sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
+  catch (e) { console.error('Supabase init error:', e); }
 }
 
-let playerId = null, playerName = 'Гость';
+// ── IDENTITY ──────────────────────────────────
+let playerId   = null;
+let playerName = 'Гость';
+
 function resolvePlayer() {
-  const params = new URLSearchParams(location.search);
-  const uid = params.get('uid'), name = params.get('name');
-  if (uid) { playerId = uid; playerName = name || 'User ' + uid; return; }
+  const params   = new URLSearchParams(location.search);
+  const uidParam = params.get('uid');
+  const nameParam= params.get('name');
+  if (uidParam) { playerId = uidParam; playerName = nameParam || ('User ' + uidParam); return; }
   try {
-    const tg = window.Telegram?.WebApp;
-    const u = tg?.initDataUnsafe?.user;
-    if (u?.id) {
-      playerId = String(u.id);
-      playerName = [u.first_name, u.last_name].filter(Boolean).join(' ').trim() || u.username || 'User ' + u.id;
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const u  = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+    if (u && u.id) {
+      playerId   = String(u.id);
+      playerName = [u.first_name, u.last_name].filter(Boolean).join(' ').trim() || u.username || ('User ' + u.id);
     }
-  } catch (e) { }
+  } catch(e) {}
 }
 
-function haptic(k) { try { window.Telegram?.WebApp?.HapticFeedback?.[k === 'success' || k === 'error' || k === 'warning' ? 'notificationOccurred' : 'impactOccurred'](k || 'light'); } catch (e) { } }
-function showToast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000); }
+// ── SUPABASE DATA LAYER ───────────────────────
+async function fetchBestTime(uid, diff) {
+  if (!uid || !USE_SUPABASE) return null;
+  try {
+    const { data, error } = await sbClient
+      .from('minesweeper_scores')
+      .select('time')
+      .eq('telegram_user_id', uid)
+      .eq('difficulty', diff)
+      .order('time', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error) { console.error(error); return null; }
+    return data ? data.time : null;
+  } catch(e) { return null; }
+}
 
+async function persistScore(time, diff) {
+  if (!USE_SUPABASE || !playerId) return;
+  try {
+    await sbClient.from('minesweeper_scores').insert([
+      { telegram_user_id: playerId, name: playerName, difficulty: diff, time, completed_at: new Date().toISOString() }
+    ]);
+  } catch(e) { console.error('persistScore error:', e); }
+}
+
+async function refreshLeaderboard(diff) {
+  const listEl = document.getElementById('lb-list');
+  if (!USE_SUPABASE) { listEl.innerHTML = '<div class="m-lb-empty">Локальный режим — рейтинг недоступен</div>'; return; }
+  try {
+    const { data, error } = await sbClient
+      .from('minesweeper_scores')
+      .select('telegram_user_id, name, time')
+      .eq('difficulty', diff)
+      .order('time', { ascending: true })
+      .limit(5);
+    if (error) { listEl.innerHTML = '<div class="m-lb-empty">Ошибка загрузки</div>'; return; }
+    if (!data || !data.length) { listEl.innerHTML = '<div class="m-lb-empty">Пока никто не играл ✨</div>'; return; }
+    listEl.innerHTML = data.map((row, i) => {
+      const isMe = playerId && String(row.telegram_user_id) === String(playerId);
+      return `<div class="m-lb-row ${isMe ? 'me' : ''}">
+        <span class="m-lb-rank">${i + 1}</span>
+        <span class="m-lb-name">${escHtml(row.name || 'Игрок')}</span>
+        <span class="m-lb-time">${formatTime(row.time)}</span>
+      </div>`;
+    }).join('');
+  } catch(e) { listEl.innerHTML = '<div class="m-lb-empty">Ошибка загрузки</div>'; }
+}
+
+// ── UTILS ─────────────────────────────────────
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function formatTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function haptic(kind) {
+  try {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (!tg || !tg.HapticFeedback) return;
+    if (['success','error','warning'].includes(kind)) tg.HapticFeedback.notificationOccurred(kind);
+    else tg.HapticFeedback.impactOccurred(kind || 'light');
+  } catch(e) {}
+}
+
+function askConfirm(msg) {
+  return new Promise(resolve => {
+    try {
+      const tg = window.Telegram && window.Telegram.WebApp;
+      if (tg && typeof tg.showConfirm === 'function') { tg.showConfirm(msg, ok => resolve(!!ok)); return; }
+    } catch(e) {}
+    resolve(window.confirm(msg));
+  });
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ═══════════════════════════════════════════════
+// GAME
+// ═══════════════════════════════════════════════
 const DIFFICULTIES = {
-  easy: { rows: 8, cols: 8, mines: 10 },
+  easy:   { rows: 8,  cols: 8,  mines: 10 },
   medium: { rows: 12, cols: 12, mines: 30 },
-  hard: { rows: 16, cols: 16, mines: 40 }
+  hard:   { rows: 16, cols: 16, mines: 40 }
 };
 
 let difficulty = 'easy';
 let cells = [];
-let board = [];
+let boardEl = null;
 let gameOver = false;
 let won = false;
 let startTime = null;
 let timerInterval = null;
 let flagCount = 0;
+let revealedCount = 0;
+let totalMines = 10;
 
 function setDifficulty(d) {
   difficulty = d;
   document.querySelectorAll('.m-diff-btn').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
+  // find button by data-diff
+  document.querySelectorAll('.m-diff-btn').forEach(b => {
+    if (b.textContent.toLowerCase().includes(d)) b.classList.add('active');
+  });
   init();
 }
 
-function getConfig() {
-  return DIFFICULTIES[difficulty];
-}
+function getConfig() { return DIFFICULTIES[difficulty]; }
 
 function initBoard() {
   const cfg = getConfig();
-  board = Array(cfg.rows).fill(null).map(() => Array(cfg.cols).fill(0));
-  cells = Array(cfg.rows).fill(null).map((_, r) => Array(cfg.cols).fill(null).map((_, c) => ({ r, c, mine: false, revealed: false, flag: false, num: 0 })));
-
+  cells = [];
+  for (let r = 0; r < cfg.rows; r++) {
+    const row = [];
+    for (let c = 0; c < cfg.cols; c++) {
+      row.push({ mine: false, revealed: false, flag: false, num: 0 });
+    }
+    cells.push(row);
+  }
+  // place mines
   let placed = 0;
   while (placed < cfg.mines) {
     const r = Math.floor(Math.random() * cfg.rows);
     const c = Math.floor(Math.random() * cfg.cols);
     if (!cells[r][c].mine) { cells[r][c].mine = true; placed++; }
   }
-
+  // calculate numbers
   for (let r = 0; r < cfg.rows; r++) {
     for (let c = 0; c < cfg.cols; c++) {
-      if (!cells[r][c].mine) {
-        let count = 0;
-        for (let dr = -1; dr <= 1; dr++) {
-          for (let dc = -1; dc <= 1; dc++) {
-            const nr = r + dr, nc = c + dc;
-            if (nr >= 0 && nr < cfg.rows && nc >= 0 && nc < cfg.cols && cells[nr][nc].mine) count++;
-          }
+      if (cells[r][c].mine) continue;
+      let count = 0;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const nr = r + dr, nc = c + dc;
+          if (nr >= 0 && nr < cfg.rows && nc >= 0 && nc < cfg.cols && cells[nr][nc].mine) count++;
         }
-        cells[r][c].num = count;
       }
+      cells[r][c].num = count;
     }
   }
+  totalMines = cfg.mines;
+  flagCount = 0;
+  revealedCount = 0;
 }
 
 function renderBoard() {
   const cfg = getConfig();
-  const boardEl = document.getElementById('board');
+  if (!boardEl) boardEl = document.getElementById('board');
   boardEl.innerHTML = '';
-  boardEl.style.gridTemplateColumns = `repeat(${cfg.cols}, 28px)`;
+  boardEl.style.gridTemplateColumns = `repeat(${cfg.cols}, 1fr)`;
+  boardEl.style.gridTemplateRows = `repeat(${cfg.rows}, 1fr)`;
 
   for (let r = 0; r < cfg.rows; r++) {
     for (let c = 0; c < cfg.cols; c++) {
       const cell = cells[r][c];
       const div = document.createElement('div');
       div.className = 'm-cell';
-      if (cell.flag) div.classList.add('flag');
+      div.dataset.r = r;
+      div.dataset.c = c;
       if (cell.revealed) {
         div.classList.add('revealed');
-        if (cell.mine) { div.classList.add('mine'); div.textContent = '💣'; }
-        else if (cell.num > 0) div.textContent = cell.num;
+        if (cell.mine) {
+          div.classList.add('mine');
+          div.textContent = '💣';
+        } else if (cell.num > 0) {
+          const numSpan = document.createElement('span');
+          numSpan.className = 'num-' + cell.num;
+          numSpan.textContent = cell.num;
+          div.appendChild(numSpan);
+        }
+      } else if (cell.flag) {
+        div.classList.add('flag');
       }
       div.addEventListener('click', () => revealCell(r, c));
       div.addEventListener('contextmenu', (e) => { e.preventDefault(); toggleFlag(r, c); });
       boardEl.appendChild(div);
     }
   }
-
   updateStats();
+}
+
+function getCellElement(r, c) {
+  return boardEl.querySelector(`[data-r="${r}"][data-c="${c}"]`);
 }
 
 function revealCell(r, c) {
   if (gameOver || cells[r][c].revealed || cells[r][c].flag) return;
   if (!startTime) { startTime = Date.now(); startTimer(); }
 
-  if (cells[r][c].mine) { endGame(false); return; }
+  if (cells[r][c].mine) {
+    endGame(false);
+    return;
+  }
 
   if (cells[r][c].num === 0) {
     cells[r][c].revealed = true;
+    revealedCount++;
     for (let dr = -1; dr <= 1; dr++) {
       for (let dc = -1; dc <= 1; dc++) {
         const nr = r + dr, nc = c + dc;
-        if (nr >= 0 && nr < getConfig().rows && nc >= 0 && nc < getConfig().cols && !cells[nr][nc].revealed) revealCell(nr, nc);
+        const cfg = getConfig();
+        if (nr >= 0 && nr < cfg.rows && nc >= 0 && nc < cfg.cols && !cells[nr][nc].revealed) {
+          revealCell(nr, nc);
+        }
       }
     }
   } else {
     cells[r][c].revealed = true;
+    revealedCount++;
   }
-
   renderBoard();
   checkWin();
 }
@@ -322,101 +498,116 @@ function toggleFlag(r, c) {
   if (gameOver || cells[r][c].revealed) return;
   if (!startTime) { startTime = Date.now(); startTimer(); }
   cells[r][c].flag = !cells[r][c].flag;
-  if (cells[r][c].flag) flagCount++; else flagCount--;
+  flagCount += cells[r][c].flag ? 1 : -1;
   renderBoard();
+  haptic('light');
 }
 
 function updateStats() {
   const cfg = getConfig();
-  let revealed = 0;
-  for (let r = 0; r < cfg.rows; r++) for (let c = 0; c < cfg.cols; c++) if (cells[r][c].revealed) revealed++;
   document.getElementById('flags').textContent = flagCount;
   document.getElementById('mines').textContent = cfg.mines;
-  document.getElementById('revealed').textContent = revealed;
+  document.getElementById('timer').textContent = formatTime(startTime ? Math.floor((Date.now() - startTime)/1000) : 0);
 }
 
 function startTimer() {
   timerInterval = setInterval(() => {
-    if (!gameOver) {
+    if (!gameOver && startTime) {
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      const m = Math.floor(elapsed / 60);
-      const s = elapsed % 60;
-      document.getElementById('timer').textContent = `${m}:${String(s).padStart(2, '0')}`;
+      document.getElementById('timer').textContent = formatTime(elapsed);
     }
-  }, 100);
+  }, 200);
 }
 
 function checkWin() {
   const cfg = getConfig();
-  let revealed = 0;
-  for (let r = 0; r < cfg.rows; r++) for (let c = 0; c < cfg.cols; c++) if (cells[r][c].revealed) revealed++;
-  const needed = cfg.rows * cfg.cols - cfg.mines;
-  if (revealed === needed) endGame(true);
+  const totalCells = cfg.rows * cfg.cols;
+  if (revealedCount === totalCells - cfg.mines) {
+    endGame(true);
+  }
 }
 
 function endGame(won_) {
   gameOver = true;
   won = won_;
   clearInterval(timerInterval);
+  const elapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
 
-  const cfg = getConfig();
-  for (let r = 0; r < cfg.rows; r++) {
-    for (let c = 0; c < cfg.cols; c++) {
-      if (cells[r][c].mine) cells[r][c].revealed = true;
+  // reveal all mines if lost
+  if (!won_) {
+    const cfg = getConfig();
+    for (let r = 0; r < cfg.rows; r++) {
+      for (let c = 0; c < cfg.cols; c++) {
+        if (cells[r][c].mine) cells[r][c].revealed = true;
+      }
     }
+    renderBoard();
   }
-  renderBoard();
 
-  const elapsed = Math.floor((Date.now() - startTime) / 1000);
-  const m = Math.floor(elapsed / 60);
-  const s = elapsed % 60;
-  const timeStr = `${m}:${String(s).padStart(2, '0')}`;
+  // show modal
+  document.getElementById('modal-emoji').textContent = won_ ? '🎉' : '💥';
+  document.getElementById('modal-title').textContent = won_ ? 'Вы выиграли!' : 'Вы проиграли';
+  document.getElementById('final-time').textContent = formatTime(elapsed);
 
-  document.getElementById('modal-title').textContent = won_ ? '🎉 Вы выиграли!' : '💥 Вы проиграли';
-  document.getElementById('modal-text').textContent = `Время: ${timeStr}`;
-  document.getElementById('game-over-modal').classList.add('open');
+  const bestNote = document.getElementById('final-best-note');
+  if (won_) {
+    // save score
+    if (USE_SUPABASE && playerId) {
+      persistScore(elapsed, difficulty);
+      // check if it's a new personal best
+      fetchBestTime(playerId, difficulty).then(best => {
+        if (best !== null && elapsed < best) {
+          bestNote.textContent = '🏆 Новый личный рекорд!';
+        } else if (best === null) {
+          bestNote.textContent = '🎉 Первая победа!';
+        } else {
+          bestNote.textContent = `Ваш лучший: ${formatTime(best)}`;
+        }
+      });
+    } else {
+      bestNote.textContent = '✅ Результат сохранён локально';
+    }
+    haptic('success');
+  } else {
+    bestNote.textContent = '';
+    haptic('error');
+  }
 
-  if (won_ && USE_SUPABASE && playerId) persistScore(elapsed);
-  haptic(won_ ? 'success' : 'error');
+  document.getElementById('game-over-overlay').classList.add('open');
+  refreshLeaderboard(difficulty);
 }
 
-async function persistScore(time) {
-  try {
-    await supabaseClient.from('minesweeper_scores').insert([{ telegram_user_id: playerId, name: playerName, difficulty, time, completed_at: new Date().toISOString() }]);
-    loadLeaderboard();
-  } catch (e) { console.error('persistScore error:', e); }
-}
-
-async function loadLeaderboard() {
-  const lb = document.getElementById('leaderboard');
-  if (!USE_SUPABASE) { lb.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">Локальный режим</div>'; return; }
-  try {
-    const { data } = await supabaseClient.from('minesweeper_scores').select('telegram_user_id,name,time').eq('difficulty', difficulty).order('time', { ascending: true }).limit(5);
-    if (!data?.length) { lb.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">Нет результатов</div>'; return; }
-    lb.innerHTML = data.map((row, i) => `
-      <div class="m-lb-row ${playerId && String(row.telegram_user_id) === String(playerId) ? 'me' : ''}">
-        <span class="m-lb-rank">${i + 1}</span>
-        <span class="m-lb-name">${row.name || 'Игрок'}</span>
-        <span class="m-lb-time">${Math.floor(row.time / 60)}:${String(row.time % 60).padStart(2, '0')}</span>
-      </div>`).join('');
-  } catch (e) { console.error('loadLeaderboard error:', e); }
+async function confirmNewGame() {
+  if (!gameOver && startTime) {
+    const ok = await askConfirm('Начать новую игру? Текущая будет потеряна.');
+    if (!ok) return;
+  }
+  init();
 }
 
 function init() {
   resolvePlayer();
+  document.getElementById('player-name').textContent = playerId
+    ? `👤 ${playerName}`
+    : '👤 Гость — результат только локально';
+
   gameOver = false;
   won = false;
   startTime = null;
-  flagCount = 0;
   clearInterval(timerInterval);
   document.getElementById('timer').textContent = '0:00';
-  document.getElementById('game-over-modal').classList.remove('open');
+  document.getElementById('game-over-overlay').classList.remove('open');
+
   initBoard();
   renderBoard();
-  loadLeaderboard();
-  if (window.Telegram?.WebApp) try { window.Telegram.WebApp.ready(); } catch (e) { }
+  refreshLeaderboard(difficulty);
+
+  if (window.Telegram && window.Telegram.WebApp) {
+    try { window.Telegram.WebApp.ready(); } catch(e) {}
+  }
 }
 
+// initial load
 init();
 </script>
 </body>
