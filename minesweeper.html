@@ -380,7 +380,6 @@ let totalMines = 10;
 function setDifficulty(d) {
   difficulty = d;
   document.querySelectorAll('.m-diff-btn').forEach(b => b.classList.remove('active'));
-  // find button by data-diff
   document.querySelectorAll('.m-diff-btn').forEach(b => {
     if (b.textContent.toLowerCase().includes(d)) b.classList.add('active');
   });
@@ -399,14 +398,12 @@ function initBoard() {
     }
     cells.push(row);
   }
-  // place mines
   let placed = 0;
   while (placed < cfg.mines) {
     const r = Math.floor(Math.random() * cfg.rows);
     const c = Math.floor(Math.random() * cfg.cols);
     if (!cells[r][c].mine) { cells[r][c].mine = true; placed++; }
   }
-  // calculate numbers
   for (let r = 0; r < cfg.rows; r++) {
     for (let c = 0; c < cfg.cols; c++) {
       if (cells[r][c].mine) continue;
@@ -474,22 +471,34 @@ function revealCell(r, c) {
     return;
   }
 
-  if (cells[r][c].num === 0) {
-    cells[r][c].revealed = true;
+  // Итеративный flood-fill — checkWin вызывается один раз в конце
+  const stack = [[r, c]];
+  const cfg = getConfig();
+
+  while (stack.length) {
+    const [cr, cc] = stack.pop();
+    if (cells[cr][cc].revealed || cells[cr][cc].flag) continue;
+
+    cells[cr][cc].revealed = true;
     revealedCount++;
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        const nr = r + dr, nc = c + dc;
-        const cfg = getConfig();
-        if (nr >= 0 && nr < cfg.rows && nc >= 0 && nc < cfg.cols && !cells[nr][nc].revealed) {
-          revealCell(nr, nc);
+
+    if (cells[cr][cc].num === 0) {
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const nr = cr + dr, nc = cc + dc;
+          if (
+            nr >= 0 && nr < cfg.rows &&
+            nc >= 0 && nc < cfg.cols &&
+            !cells[nr][nc].revealed &&
+            !cells[nr][nc].flag
+          ) {
+            stack.push([nr, nc]);
+          }
         }
       }
     }
-  } else {
-    cells[r][c].revealed = true;
-    revealedCount++;
   }
+
   renderBoard();
   checkWin();
 }
@@ -520,6 +529,7 @@ function startTimer() {
 }
 
 function checkWin() {
+  if (gameOver) return;
   const cfg = getConfig();
   const totalCells = cfg.rows * cfg.cols;
   if (revealedCount === totalCells - cfg.mines) {
@@ -528,12 +538,12 @@ function checkWin() {
 }
 
 function endGame(won_) {
+  if (gameOver) return; // защита от повторных вызовов
   gameOver = true;
   won = won_;
   clearInterval(timerInterval);
   const elapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
 
-  // reveal all mines if lost
   if (!won_) {
     const cfg = getConfig();
     for (let r = 0; r < cfg.rows; r++) {
@@ -544,17 +554,14 @@ function endGame(won_) {
     renderBoard();
   }
 
-  // show modal
   document.getElementById('modal-emoji').textContent = won_ ? '🎉' : '💥';
   document.getElementById('modal-title').textContent = won_ ? 'Вы выиграли!' : 'Вы проиграли';
   document.getElementById('final-time').textContent = formatTime(elapsed);
 
   const bestNote = document.getElementById('final-best-note');
   if (won_) {
-    // save score
     if (USE_SUPABASE && playerId) {
       persistScore(elapsed, difficulty);
-      // check if it's a new personal best
       fetchBestTime(playerId, difficulty).then(best => {
         if (best !== null && elapsed < best) {
           bestNote.textContent = '🏆 Новый личный рекорд!';
