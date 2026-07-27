@@ -311,11 +311,12 @@ async function fetchStats() {
 async function saveScore(score, zone) {
   if (!sb || !playerId) return;
   try {
-    await sb.from('doodle_scores').insert([{
+    const {error}=await sb.from('doodle_scores').insert([{
       telegram_user_id: playerId, name: playerName,
       score, zone, played_at: new Date().toISOString()
     }]);
-  } catch(e){ console.error(e); }
+    if(error){console.error('Supabase save error',error.message,error.details,error);return false;} return true;
+  } catch(e){ console.error(e); return false; }
 }
 
 async function loadLeaderboard() {
@@ -1037,8 +1038,10 @@ async function onGameOver(){
   const score = gs.score;
   const zone  = getZone(score);
 
+  resolvePlayer();
   const { best: prevBest } = await fetchStats();
-  await saveScore(score, zone.name);
+  const saved=await saveScore(score, zone.name);
+  if(saved){await refreshMenu();}
 
   document.getElementById('moEmoji').textContent  = score>500?'🌟':(score>200?'🏮':'🌾');
   document.getElementById('moTitle').textContent  = score>800?'Невероятно!':(score>300?'Отличный прыжок!':'Попробуй ещё раз');
